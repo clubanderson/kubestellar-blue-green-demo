@@ -36,7 +36,39 @@ get the kubeconfig
 
 
 NEXT STEPS:
-    Install KubeStellar
+
+    Install KubeStellar (WDS0 hosted control plane, WDS1 and WDS)
+    add bindingpolicy for WDS1 to get 'app.kubernetes.io/part-of=v1' and WDS2 to get 'app.kubernetes.io/part-of=v2'
+
+    apiVersion: control.kubestellar.io/v1alpha1
+    kind: BindingPolicy
+    metadata:
+      name: wec-v1-bindingpolicy
+    spec:
+      wantSingletonReportedState: true
+      clusterSelectors:
+      - matchLabels:
+          location-group: wds1
+      downsync:
+      - objectSelectors:
+        - matchLabels: 
+            app.kubernetes.io/part-of: v1
+
+
+    apiVersion: control.kubestellar.io/v1alpha1
+    kind: BindingPolicy
+    metadata:
+      name: wec-v2-bindingpolicy
+    spec:
+      wantSingletonReportedState: true
+      clusterSelectors:
+      - matchLabels:
+          location-group: wds2
+      downsync:
+      - objectSelectors:
+        - matchLabels: 
+            app.kubernetes.io/part-of: v2
+
     git clone https://github.com/paulbouwer/hello-kubernetes.git
     
     KUBECONFIG=eks.kubeconfig helm --kube-context wds1 install --create-namespace --namespace hello-kubernetes v1 \
