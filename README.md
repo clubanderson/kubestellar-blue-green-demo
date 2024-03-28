@@ -72,4 +72,25 @@ NEXT STEPS:
                   "servicePort":"80",
                   "weight":100
                 },
+                {
+                  "serviceName":"hello-kubernetes-v2",
+                  "servicePort":"80",
+                  "weight":0
+                }
+              ]
+            }
+          }
+      labels:
+        app: hello-kubernetes
+    spec:
+      rules:
+        - http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: blue-green
+                    port:
+                      name: use-annotation
     EOF
