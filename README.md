@@ -94,3 +94,79 @@ NEXT STEPS:
                     port:
                       name: use-annotation
     EOF
+
+    ingress.networking.k8s.io/hello-kubernetes configured
+
+    ELB_URL=$(kubectl get ingress -n hello-kubernetes -o=jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
+    while true; do curl -s $ELB_URL | grep version; sleep 1; done
+  
+        You are reaching hello-kubernetes version 1
+        You are reaching hello-kubernetes version 1
+        You are reaching hello-kubernetes version 1
+
+
+    KUBECONFIG=eks.kubeconfig kubectl --context WDS0 apply -f - <<EOF
+    alb.ingress.kubernetes.io/actions.blue-green: |
+      {
+         "type":"forward",
+         "forwardConfig":{
+           "targetGroups":[
+             {
+               "serviceName":"hello-kubernetes-v1",
+               "servicePort":"80",
+               "weight":0
+             },
+             {
+               "serviceName":"hello-kubernetes-v2",
+               "servicePort":"80",
+               "weight":100
+             }
+           ]
+         }
+       }
+    EOF
+
+    ingress.networking.k8s.io/hello-kubernetes configured
+
+    while true; do curl -s k8s-hellokub-hellokub-1c21b68bea-597504338.ap-southeast-2.elb.amazonaws.com | grep version; sleep 1; done
+
+        You are reaching hello-kubernetes version 2
+        You are reaching hello-kubernetes version 2
+        You are reaching hello-kubernetes version 2
+
+    KUBECONFIG=eks.kubeconfig kubectl --context WDS0 apply -f - <<EOF
+    alb.ingress.kubernetes.io/actions.blue-green: |
+      {
+         "type":"forward",
+         "forwardConfig":{
+           "targetGroups":[
+             {
+               "serviceName":"hello-kubernetes-v1",
+               "servicePort":"80",
+               "weight":90
+             },
+             {
+               "serviceName":"hello-kubernetes-v2",
+               "servicePort":"80",
+               "weight":10
+             }
+           ]
+         }
+       }
+    EOF
+
+    ingress.networking.k8s.io/hello-kubernetes configured
+
+    while true; do curl -s k8s-hellokub-hellokub-1c21b68bea-597504338.ap-southeast-2.elb.amazonaws.com | grep version; sleep 1; done
+    
+        You are reaching hello-kubernetes version 1
+        You are reaching hello-kubernetes version 2
+        You are reaching hello-kubernetes version 1
+        You are reaching hello-kubernetes version 1
+        You are reaching hello-kubernetes version 1
+
+
+    
+tear down:
+    KUBECONFIG=eks.kubeconfig kubectl --context WDS0 delete ing hello-kubernetes
+    eksctl delete cluster --name dev --region ap-southeast-2
