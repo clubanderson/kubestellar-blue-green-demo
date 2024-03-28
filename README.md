@@ -168,5 +168,6 @@ NEXT STEPS:
 
     
 tear down:
+
     KUBECONFIG=eks.kubeconfig kubectl --context WDS0 delete ing hello-kubernetes
     eksctl delete cluster --name dev --region ap-southeast-2
