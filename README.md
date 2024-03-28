@@ -37,7 +37,12 @@ get the kubeconfig
 
 NEXT STEPS:
 
-    Install KubeStellar (WDS0 hosted control plane, WDS1 and WDS)
+    create 2 more clusters
+        eksctl create cluster --name aws-wec1 --region ap-southeast-2
+        eksctl create cluster --name aws-wec2 --region ap-southeast-2
+    
+
+    Stacker: Install KubeStellar (WDS0 hosted control plane, WDS1 pointing at aws-wec1 and WDS2 pointing at aws-wec2)
     add bindingpolicy for WDS1 to get 'app.kubernetes.io/part-of=v1' and WDS2 to get 'app.kubernetes.io/part-of=v2'
 
     apiVersion: control.kubestellar.io/v1alpha1
