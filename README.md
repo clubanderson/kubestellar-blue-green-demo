@@ -39,6 +39,7 @@ get the kubeconfigs
         test https://imbs1.kubestellar.org:9443, https://wds1.kubestellar.org:9443, https://wds2.kubestellar.org:9443
 
 
+OLD APPROACH
 [ALB config for EKS](https://docs.aws.amazon.com/eks/latest/userguide/lbc-helm.html)
 
     eksctl utils associate-iam-oidc-provider --region=us-east-1 --cluster=bg-core --approve
@@ -65,7 +66,7 @@ get the kubeconfigs
         --cluster=bg-wec1 \
         --namespace=kube-system \
         --name=aws-load-balancer-controller-wec1 \
-        --role-name AmazonEKSLoadBalancerControllerRole \
+        --role-name AmazonEKSLoadBalancerControllerRoleWec2 \
         --attach-policy-arn=arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
         --approve \
         --region us-east-1
@@ -74,7 +75,7 @@ get the kubeconfigs
         --cluster=bg-wec2 \
         --namespace=kube-system \
         --name=aws-load-balancer-controller-wec2 \
-        --role-name AmazonEKSLoadBalancerControllerRole \
+        --role-name AmazonEKSLoadBalancerControllerRoleWec2 \
         --attach-policy-arn=arn:aws:iam::$ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
         --approve \
         --region us-east-1
@@ -84,12 +85,23 @@ get the kubeconfigs
     KUBECONFIG=eks.kubeconfig helm repo add eks https://aws.github.io/eks-charts
     KUBECONFIG=eks.kubeconfig helm repo update eks
 
-    (on all clusters?)
-    KUBECONFIG=eks.kubeconfig helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+    KUBECONFIG=eks.kubeconfig helm --kube-context bg-core install aws-load-balancer-controller eks/aws-load-balancer-controller \
         -n kube-system \
         --set clusterName=bg-core \
         --set serviceAccount.create=false \
         --set serviceAccount.name=aws-load-balancer-controller 
+
+    KUBECONFIG=eks.kubeconfig helm --kube-context bg-wec1 install aws-load-balancer-controller eks/aws-load-balancer-controller \
+        -n kube-system \
+        --set clusterName=bg-wec1 \
+        --set serviceAccount.create=false \
+        --set serviceAccount.name=aws-load-balancer-controller-wec1
+
+    KUBECONFIG=eks.kubeconfig helm --kube-context bg-wec2 install aws-load-balancer-controller eks/aws-load-balancer-controller \
+        -n kube-system \
+        --set clusterName=bg-wec2 \
+        --set serviceAccount.create=false \
+        --set serviceAccount.name=aws-load-balancer-controller-wec2 
 
     KUBECONFIG=eks.kubeconfig kubectl get deployment -n kube-system aws-load-balancer-controller
 
@@ -316,7 +328,110 @@ NEXT STEPS:
         You are reaching hello-kubernetes version 1
 
 
+did not work - target wanted a service name (endpoint) in the cluster where the target
     
+        git clone https://github.com/clubanderson/kubestellar-blue-green-demo
+
+
+1) install dns policy
+
+    aws iam create-policy --policy-name "AllowExternalDNSUpdates" --policy-document file://policy.json
+    POLICY_ARN=$(aws iam list-policies --query 'Policies[?PolicyName==`AllowExternalDNSUpdates`].Arn' --output text)
+
+2) create service account on each cluster
+    eksctl create iamserviceaccount \
+      --cluster bg-core \
+      --name "external-dns" \
+      --namespace "default" \
+      --attach-policy-arn $POLICY_ARN \
+      --approve
+
+    eksctl create iamserviceaccount \
+      --cluster bg-wec1 \
+      --name "external-dns" \
+      --namespace "default" \
+      --attach-policy-arn $POLICY_ARN \
+      --approve
+
+    eksctl create iamserviceaccount \
+      --cluster bg-wec2 \
+      --name "external-dns" \
+      --namespace "default" \
+      --attach-policy-arn $POLICY_ARN \
+      --approve
+
+3) update domain filter in step2-external-dns deployment definition in step2-externaldns/v1/bg-wec1-external-dns-with-rbac.yml and step2-external-dns/v2/bg-wec2-external-dns-with-rbac.yml to match your domain name in route53
+
+    - --domain-filter= your.domain.here
+
+4) deploy external-dns with KubeStellar
+    kubectl --context wds1 apply -f step2-external-dns/v1/  
+    kubectl --context wds2 apply -f step2-external-dns/v2/
+
+5) check that external-dns was applied to the remote clusters
+
+    kubectl --context bg-wec1 --namespace=kube-system get pods -l "app.kubernetes.io/name=external-dns,app.kubernetes.io/instance=externaldns-release"
+    kubectl --context bg-wec1 get all -n default | grep external-dns   
+
+    kubectl --context bg-wec2 --namespace=kube-system get pods -l "app.kubernetes.io/name=external-dns,app.kubernetes.io/instance=externaldns-release"
+    kubectl --context bg-wec2 get all -n default | grep external-dns   
+
+6) update the external-dns hostname annotation in the service definition in step3-hello-kubernetes/v1/bg-wec1-hello-kubernetes.yml and step3-hello-kubernetes/v2/bg-wec2-hello-kubernetes.yml
+
+  external-dns.alpha.kubernetes.io/hostname: hello-kube.your.domain.here
+
+7) deploy hello-kubernetes application with KubeStellar
+    kubectl --context wds1 apply -f step3-hello-kubernetes/v1/  
+    kubectl --context wds2 apply -f step3-hello-kubernetes/v2/
+
+8) check if hello-kubernetes was applied the remote clusters
+
+    kubectl --context bg-wec1 get all -n hello-kubernetes
+    kubectl --context bg-wec2 get all -n hello-kubernetes
+
+9) check route53 for dns updates
+    if you do not see updates, check logs at 
+
+    kubectl --context bg-wec1 logs deployment/external-dns  
+    kubectl --context bg-wec2 logs deployment/external-dns  
+
+10) try the url you specified in the external-dns hostname annotation in the hello-kubernetes service definition (be sure to put in a nameserver from your domains NS record)
+    for i in {1..500}; do domain=$(dig hello-kube.your.domain.here. TXT @your.domains.ns.record. +short); echo -e  "$domain" >> RecursiveResolver_results.txt; done
+    awk ' " " ' RecursiveResolver_results.txt | sort | uniq -c
+
+    source: https://repost.aws/knowledge-center/route-53-fix-dns-weighted-routing-issue#
+
+    you should see 50% of traffic going to each version/service
+
+11) update the external-dns aws-weight (shift more traffic to v2 of hello-kubernetes) annotation in the service definition in 
+
+    edit step3-hello-kubernetes/v1/bg-wec1-hello-kubernetes.yml 
+
+      external-dns.alpha.kubernetes.io/aws-weight: "25"
+
+    edit step3-hello-kubernetes/v2/bg-wec2-hello-kubernetes.yml
+
+      external-dns.alpha.kubernetes.io/aws-weight: "75"
+
+12) re-deploy hello-kubernetes application with KubeStellar
+
+    kubectl --context wds1 apply -f step3-hello-kubernetes/v1/  
+    kubectl --context wds2 apply -f step3-hello-kubernetes/v2/
+
+13) again, try the url you specified in the external-dns hostname annotation in the hello-kubernetes service definition (be sure to put in a nameserver from your domains NS record)
+    for i in {1..500}; do domain=$(dig hello-kube.your.domain.here. TXT @your.domains.ns.record. +short); echo -e  "$domain" >> RecursiveResolver_results.txt; done
+    awk ' " " ' RecursiveResolver_results.txt | sort | uniq -c
+
+    source: https://repost.aws/knowledge-center/route-53-fix-dns-weighted-routing-issue#
+    you should see 25% of traffic going to each v1 version of the hello-kubernetes service and 75% of traffic going to the v2 version of the hello-kubernetes service
+
+TODO: show traffic graph
+
+
+sources:
+https://ddulic.dev/external-dns-migrate-services-between-k8s-clusters
+
+
 tear down:
 
     KUBECONFIG=eks.kubeconfig kubectl --context WDS0 delete ing hello-kubernetes
