@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/instance: v2
+    kubernetes.io/metadata.name: hello-kubernetes
+    name: hello-kubernetes
+  name: hello-kubernetes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: v2
+    app.kubernetes.io/name: hello-kubernetes
+    app.kubernetes.io/version: "1.10"
+  name: hello-kubernetes-v2
+  namespace: hello-kubernetes
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: v2
+      app.kubernetes.io/name: hello-kubernetes
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/instance: v2
+        app.kubernetes.io/name: hello-kubernetes
+    spec:
+      containers:
+      - env:
+        - name: MESSAGE
+          value: You are reaching hello-kubernetes version 2
+        - name: HANDLER_PATH_PREFIX
+        - name: RENDER_PATH_PREFIX
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: KUBERNETES_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: CONTAINER_IMAGE
+          value: paulbouwer/hello-kubernetes:1.10
+        image: paulbouwer/hello-kubernetes:1.10
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: hello-kubernetes
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: hello-kubernetes-v2
+      serviceAccountName: hello-kubernetes-v2
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: hello-kube.mcc.res.ibm.com
+    external-dns.alpha.kubernetes.io/alias: "true"
+    external-dns.alpha.kubernetes.io/set-identifier: hello-kube-green
+    external-dns.alpha.kubernetes.io/aws-weight: "50"  
+  labels:
+    app.kubernetes.io/instance: v2
+    app.kubernetes.io/name: hello-kubernetes
+    app.kubernetes.io/version: "1.10"
+  name: hello-kubernetes-v2
+  namespace: hello-kubernetes
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: v2
+    app.kubernetes.io/name: hello-kubernetes
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/instance: v2
+    app.kubernetes.io/name: hello-kubernetes
+    app.kubernetes.io/version: "1.10"
+  name: hello-kubernetes-v2
+  namespace: hello-kubernetes

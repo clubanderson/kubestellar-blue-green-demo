@@ -1,0 +1,13 @@
+apiVersion: control.kubestellar.io/v1alpha1
+kind: BindingPolicy
+metadata:
+  name: bg-wec1-hello-kubernetes-v1-bindingpolicy
+spec:
+  wantSingletonReportedState: true
+  clusterSelectors:
+  - matchLabels:
+      name: bg-wec1
+  downsync:
+  - objectSelectors:
+    - matchLabels: 
+        app.kubernetes.io/instance: v1
