@@ -1,0 +1,23 @@
+source vars.sh
+
+eksctl create iamserviceaccount \
+  --cluster bg-core \
+  --name "external-dns" \
+  --namespace "default" \
+  --attach-policy-arn $POLICY_ARN \
+  --approve
+
+eksctl create iamserviceaccount \
+  --cluster bg-wec1 \
+  --name "external-dns" \
+  --namespace "default" \
+  --attach-policy-arn $POLICY_ARN \
+  --approve
+
+eksctl create iamserviceaccount \
+  --cluster bg-wec2 \
+  --name "external-dns" \
+  --namespace "default" \
+  --attach-policy-arn $POLICY_ARN \
+  --approve
+
