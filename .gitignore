@@ -1,4 +1,4 @@
 *.kubeconfig
 .kuberlr
 aws.json
-vars.sh
+step1-route53/vars.sh
