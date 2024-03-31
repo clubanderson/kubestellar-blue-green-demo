@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-kubernetes-step1
+  namespace: default
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/actions.blue-green: |
+      {
+        "type":"forward",
+        "forwardConfig":{
+          "targetGroups":[
+            {
+              "Name": "target-group-bg-wec1",
+              "targetGroupARN": "arn:aws:elasticloadbalancing:$REGION:$ACCOUNT_ID:targetgroup/target-group-bg-wec1/a5291e82fcc6b879",
+              "weight":100
+            },
+            {
+              "Name": "target-group-bg-wec2",
+              "targetGroupARN": "arn:aws:elasticloadbalancing:$REGION:$ACCOUNT_ID:targetgroup/target-group-bg-wec2/41813480453d8864",
+              "weight":0
+            }
+          ]
+        }
+      }
+  labels:
+    app: hello-kubernetes
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: blue-green
+                port:
+                  number: 80

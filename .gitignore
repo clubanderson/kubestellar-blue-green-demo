@@ -2,4 +2,3 @@
 .kuberlr
 aws.json
 vars.sh
-/old-alb-to-nlb

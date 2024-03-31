@@ -1,0 +1,13 @@
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: tgb-v1
+  namespace: hello-kubernetes
+  labels:
+    app.kubernetes.io/instance: v1
+spec:
+  serviceRef:
+    name: hello-kubernetes-v1
+    port: 80
+  targetGroupARN: arn:aws:elasticloadbalancing:$REGION:$ACCOUNT_ID:targetgroup/target-group-bg-wec1/a5291e82fcc6b879
+  targetType: ip
